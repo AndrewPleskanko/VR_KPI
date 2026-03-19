@@ -1,20 +1,46 @@
 <!DOCTYPE html>
-<html><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<html>
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
 
 
-<title>PA#1</title>
-<style>
-    body {
-        background-color: #EEEEEE;
-    }
-</style>
+    <title>PA#1</title>
+    <style>
+        body {
+            background-color: #EEEEEE;
+        }
 
-<script src="./Utils/trackball-rotator.js"></script>
-<script src="./Utils/m4.js"></script>
-<script src="./shader.gpu"></script>
-<script src="./Model.js"></script>
-<script src="./StereoCamera.js"></script>
-<script src="./main.js"></script>
+        .container {
+            display: flex;
+            gap: 20px;
+            padding: 20px;
+        }
+
+        .controls {
+            background: #fff;
+            padding: 15px;
+            min-width: 250px;
+        }
+
+        .control-group {
+            margin-bottom: 10px;
+        }
+
+        .control-group input[type="range"] {
+            width: 100%;
+        }
+
+        #videoElement {
+            display: none;
+        }
+    </style>
+
+    <script src="./Utils/trackball-rotator.js"></script>
+    <script src="./Utils/m4.js"></script>
+    <script src="./shader.js"></script>
+    <script src="./Model.js"></script>
+    <script src="./StereoCamera.js"></script>
+    <script src="./main.js"></script>
 
 </head>
 <body onload="init()">
@@ -22,12 +48,43 @@
 <h2>A Cube with "Trackball" Mouse Rotation</h2>
 
 <p id="message">Drag your mouse on the cube to rotate it.<br>
-(On a touch screen, you can use your finger.)</p>
+    (On a touch screen, you can use your finger.)</p>
 
+<div class="container">
+    <div id="canvas-holder">
+        <canvas width="600" height="600" id="webglcanvas" style="background-color:black"></canvas>
+    </div>
 
-<div id="canvas-holder">
-   <canvas width="600" height="600" id="webglcanvas" style="background-color:red"></canvas>
+    <div class="controls">
+        <h3>Stereo Parameters</h3>
+
+        <div class="control-group">
+            <label>Eye Separation: <span id="eyeSeparationValue">0.7</span></label>
+            <input type="range" id="eyeSeparation" min="0.1" max="2.0" value="0.7" step="0.1">
+        </div>
+
+        <div class="control-group">
+            <label>FOV: <span id="fieldOfViewValue">23</span>°</label>
+            <input type="range" id="fieldOfView" min="5" max="90" value="23" step="1">
+        </div>
+
+        <div class="control-group">
+            <label>Near Clip: <span id="nearClippingValue">8</span></label>
+            <input type="range" id="nearClipping" min="1" max="15" value="8" step="0.5">
+        </div>
+
+        <div class="control-group">
+            <label>Convergence: <span id="convergenceValue">14</span></label>
+            <input type="range" id="convergence" min="1" max="30" value="14" step="0.5">
+        </div>
+
+        <h3>Webcam</h3>
+        <button id="startCamera" onclick="startWebcam()">Start</button>
+        <button id="stopCamera" onclick="stopWebcam()" disabled>Stop</button>
+    </div>
 </div>
 
+<video id="videoElement" autoplay playsinline></video>
 
-</body></html>
+</body>
+</html>
