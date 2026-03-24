@@ -12,6 +12,10 @@ let webcamActive = false;       // Whether webcam is streaming
 let bgVertexBuffer;
 let bgTexCoordBuffer;
 
+let sensorSocket = null;           // WebSocket for phone sensor stream
+let sensorConnected = false;       // True while socket is open
+let sensorHeadingRad = 0;          // Yaw angle derived from magnetometer
+let sensorHeadingValid = false;    // False until first valid packet arrives
 
 // Constructor
 function ShaderProgram(name, program) {
@@ -44,7 +48,7 @@ function draw() {
     //let projection = m4.perspective(Math.PI/8, 1, 8, 12);
 
     /* Get the view matrix from the SimpleRotator object.*/
-    let modelView = spaceball.getViewMatrix();
+    let modelView = getActiveModelViewMatrix();
 
     let rotateToPointZero = m4.axisRotation([0.707, 0.707, 0], 0.7);
     let translateToPointZero = m4.translation(0, 0, -10);
@@ -120,6 +124,13 @@ function draw() {
     gl.colorMask(true, true, true, true);
 }
 
+
+function getActiveModelViewMatrix() {
+    if (sensorConnected && sensorHeadingValid) {
+        return m4.axisRotation([0, 1, 0], -sensorHeadingRad);
+    }
+    return spaceball.getViewMatrix();
+}
 
 function drawWebcamBackground() {
     if (!video || video.readyState < 2) return;
@@ -224,6 +235,138 @@ function initControls() {
     document.getElementById('fieldOfView').addEventListener('input', updateStereoParameters);
     document.getElementById('nearClipping').addEventListener('input', updateStereoParameters);
     document.getElementById('convergence').addEventListener('input', updateStereoParameters);
+
+    const wsInput = document.getElementById('sensorWsUrl');
+    if (wsInput) {
+        wsInput.addEventListener('keydown', function (event) {
+            if (event.key === 'Enter') connectSensor();
+        });
+    }
+
+    updateSensorUiStatus('Disconnected');
+}
+
+function updateSensorUiStatus(statusText) {
+    const status = document.getElementById('sensorStatus');
+    if (status) status.textContent = statusText;
+
+    const mode = document.getElementById('rotationMode');
+    if (mode) mode.textContent = (sensorConnected && sensorHeadingValid) ? 'Phone magnetometer' : 'Trackball';
+
+    const connectBtn = document.getElementById('connectSensor');
+    const disconnectBtn = document.getElementById('disconnectSensor');
+    if (connectBtn) connectBtn.disabled = sensorConnected;
+    if (disconnectBtn) disconnectBtn.disabled = !sensorConnected;
+}
+
+function updateHeadingLabel() {
+    const headingEl = document.getElementById('sensorHeading');
+    if (!headingEl) return;
+
+    if (!sensorHeadingValid) {
+        headingEl.textContent = '-';
+        return;
+    }
+
+    let deg = sensorHeadingRad * 180 / Math.PI;
+    if (deg < 0) deg += 360;
+    headingEl.textContent = deg.toFixed(1);
+}
+
+function extractMagneticVector(payload) {
+    if (!payload || typeof payload !== 'object') return null;
+
+    if (typeof payload.mx === 'number' && typeof payload.my === 'number' && typeof payload.mz === 'number') {
+        return {x: payload.mx, y: payload.my, z: payload.mz};
+    }
+
+    if (typeof payload.x === 'number' && typeof payload.y === 'number' && typeof payload.z === 'number') {
+        return {x: payload.x, y: payload.y, z: payload.z};
+    }
+
+    if (payload.magnetometer && typeof payload.magnetometer.x === 'number' && typeof payload.magnetometer.y === 'number' && typeof payload.magnetometer.z === 'number') {
+        return payload.magnetometer;
+    }
+
+    return null;
+}
+
+function connectSensor() {
+    const wsInput = document.getElementById('sensorWsUrl');
+    if (!wsInput) return;
+
+    const url = wsInput.value.trim();
+    if (!url) {
+        alert('Enter WebSocket URL, for example ws://192.168.0.10:8080');
+        return;
+    }
+
+    if (sensorSocket) {
+        sensorSocket.close();
+        sensorSocket = null;
+    }
+
+    updateSensorUiStatus('Connecting...');
+    sensorHeadingValid = false;
+    updateHeadingLabel();
+
+    try {
+        sensorSocket = new WebSocket(url);
+    } catch (err) {
+        updateSensorUiStatus('Connection failed');
+        alert('WebSocket error: ' + err.message);
+        return;
+    }
+
+    sensorSocket.onopen = function () {
+        sensorConnected = true;
+        updateSensorUiStatus('Connected');
+    };
+
+    sensorSocket.onmessage = function (event) {
+        let payload;
+        try {
+            payload = JSON.parse(event.data);
+        } catch (_) {
+            return;
+        }
+
+        const mag = extractMagneticVector(payload);
+        if (!mag) return;
+
+        // Variant 8: single-vector compass-like heading (yaw only).
+        sensorHeadingRad = Math.atan2(mag.x, mag.y);
+        sensorHeadingValid = Number.isFinite(sensorHeadingRad);
+
+        updateHeadingLabel();
+        updateSensorUiStatus(sensorConnected ? 'Connected' : 'Disconnected');
+        draw();
+    };
+
+    sensorSocket.onerror = function () {
+        updateSensorUiStatus('Socket error');
+    };
+
+    sensorSocket.onclose = function () {
+        sensorConnected = false;
+        sensorHeadingValid = false;
+        sensorSocket = null;
+        updateHeadingLabel();
+        updateSensorUiStatus('Disconnected');
+        draw();
+    };
+}
+
+function disconnectSensor() {
+    if (sensorSocket) {
+        sensorSocket.close();
+    } else {
+        sensorConnected = false;
+        sensorHeadingValid = false;
+        updateHeadingLabel();
+        updateSensorUiStatus('Disconnected');
+        draw();
+    }
 }
 
 

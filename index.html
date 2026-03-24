@@ -4,7 +4,7 @@
     <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
 
 
-    <title>PA#1</title>
+    <title>PA#2</title>
     <style>
         body {
             background-color: #EEEEEE;
@@ -30,6 +30,11 @@
             width: 100%;
         }
 
+        .control-group input[type="text"] {
+            width: 100%;
+            box-sizing: border-box;
+        }
+
         #videoElement {
             display: none;
         }
@@ -45,10 +50,9 @@
 </head>
 <body onload="init()">
 
-<h2>A Cube with "Trackball" Mouse Rotation</h2>
+<h2>PA#2: Tangible Interface (Magnetometer, Variant 8)</h2>
 
-<p id="message">Drag your mouse on the cube to rotate it.<br>
-    (On a touch screen, you can use your finger.)</p>
+<p id="message">Use trackball with mouse, or connect phone magnetometer for compass-like yaw rotation.</p>
 
 <div class="container">
     <div id="canvas-holder">
@@ -81,6 +85,21 @@
         <h3>Webcam</h3>
         <button id="startCamera" onclick="startWebcam()">Start</button>
         <button id="stopCamera" onclick="stopWebcam()" disabled>Stop</button>
+
+        <h3>Phone Sensor (WebSocket)</h3>
+        <div class="control-group">
+            <label for="sensorWsUrl">WS URL</label>
+            <input type="text" id="sensorWsUrl" value="ws://192.168.0.100:8080" placeholder="ws://phone-or-bridge:port">
+        </div>
+        <div class="control-group">
+            <button id="connectSensor" onclick="connectSensor()">Connect</button>
+            <button id="disconnectSensor" onclick="disconnectSensor()" disabled>Disconnect</button>
+        </div>
+        <div class="control-group">
+            <div>Status: <span id="sensorStatus">Disconnected</span></div>
+            <div>Rotation mode: <span id="rotationMode">Trackball</span></div>
+            <div>Heading: <span id="sensorHeading">-</span> deg</div>
+        </div>
     </div>
 </div>
 
