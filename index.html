@@ -35,9 +35,6 @@
             box-sizing: border-box;
         }
 
-        #videoElement {
-            display: none;
-        }
     </style>
 
     <script src="./Utils/trackball-rotator.js"></script>
@@ -50,9 +47,9 @@
 </head>
 <body onload="init()">
 
-<h2>PA#2: Tangible Interface (Magnetometer, Variant 8)</h2>
+<h2>PA#3: Spatial Audio + Tangible Interface (Magnetometer, Variant 8, High-pass Filter)</h2>
 
-<p id="message">Use trackball with mouse, or connect phone magnetometer for compass-like yaw rotation.</p>
+<p id="message">Surface stays fixed; phone magnetometer rotates a 3D sound source around the center.</p>
 
 <div class="container">
     <div id="canvas-holder">
@@ -82,10 +79,6 @@
             <input type="range" id="convergence" min="1" max="30" value="14" step="0.5">
         </div>
 
-        <h3>Webcam</h3>
-        <button id="startCamera" onclick="startWebcam()">Start</button>
-        <button id="stopCamera" onclick="stopWebcam()" disabled>Stop</button>
-
         <h3>Phone Sensor (WebSocket)</h3>
         <div class="control-group">
             <label for="sensorWsUrl">WS URL</label>
@@ -97,13 +90,36 @@
         </div>
         <div class="control-group">
             <div>Status: <span id="sensorStatus">Disconnected</span></div>
-            <div>Rotation mode: <span id="rotationMode">Trackball</span></div>
+            <div>Control mode: <span id="sourceControlMode">Manual (no sensor)</span></div>
             <div>Heading: <span id="sensorHeading">-</span> deg</div>
+            <div>Source XYZ: <span id="sourcePosition">0.00, 0.50, 2.20</span></div>
+        </div>
+
+        <h3>Spatial Audio</h3>
+        <div class="control-group">
+            <label for="audioFile">Song (mp3/ogg)</label>
+            <input type="file" id="audioFile" accept=".mp3,.ogg,audio/*">
+        </div>
+        <div class="control-group">
+            <button id="playAudio">Play</button>
+            <button id="pauseAudio" disabled>Pause</button>
+        </div>
+        <div class="control-group">
+            <label>Volume: <span id="volumeValue">30</span>%</label>
+            <input type="range" id="audioVolume" min="0" max="100" value="30" step="1">
+        </div>
+        <div class="control-group">
+            <label>
+                <input type="checkbox" id="highPassToggle">
+                High-pass filter (variant 8)
+            </label>
+        </div>
+        <div class="control-group">
+            <div>Audio: <span id="audioStatus">Idle</span></div>
         </div>
     </div>
 </div>
 
-<video id="videoElement" autoplay playsinline></video>
 
 </body>
 </html>

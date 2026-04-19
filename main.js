@@ -17,6 +17,15 @@ let sensorConnected = false;       // True while socket is open
 let sensorHeadingRad = 0;          // Yaw angle derived from magnetometer
 let sensorHeadingValid = false;    // False until first valid packet arrives
 
+let sphere;                     // Model for the sound source
+let audioCtx;                   // WebAudio Context
+let panner;                     // Spatial Panner Node
+let highPassFilter;             // Biquad Filter (Variant 8)
+let audioEl = new Audio();      // Dynamic Audio element
+audioEl.volume = 0.2;
+let track;                      // Media element source
+let soundRadius = 2.5;          // Distance of sound source from center
+
 // Constructor
 function ShaderProgram(name, program) {
 
@@ -53,6 +62,24 @@ function draw() {
     let rotateToPointZero = m4.axisRotation([0.707, 0.707, 0], 0.7);
     let translateToPointZero = m4.translation(0, 0, -10);
 
+
+    let currentAngle = (sensorConnected && sensorHeadingValid) ? -sensorHeadingRad : 0;
+
+    let sX = Math.sin(currentAngle) * soundRadius;
+    let sY = 0.5;
+    let sZ = -Math.cos(currentAngle) * soundRadius;
+
+    if (panner) {
+        panner.positionX.value = sX;
+        panner.positionY.value = sY;
+        panner.positionZ.value = sZ;
+    }
+
+    let posSpan = document.getElementById('sourcePosition');
+    if (posSpan) posSpan.textContent = `${sX.toFixed(2)}, ${sY.toFixed(2)}, ${sZ.toFixed(2)}`;
+
+    let matSphereTranslation = m4.translation(sX, sY, sZ);
+
     // The FIRST PASS (for the left eye)
 
     let leftCam = stereoCam.ApplyLeftFrustum();
@@ -88,6 +115,17 @@ function draw() {
     surface.DrawWireframe();
     gl.disable(gl.POLYGON_OFFSET_FILL);
 
+    let matSphereL1 = m4.multiply(matAccum0, matSphereTranslation);
+    let matSphereL2 = m4.multiply(leftCam.modelView, matSphereL1);
+    let matSphereL3 = m4.multiply(translateToPointZero, matSphereL2);
+    gl.uniformMatrix4fv(shProgram.iModelViewMatrix, false, matSphereL3);
+    gl.uniform4fv(shProgram.iColor, [1, 0, 0, 1]);
+    gl.bindBuffer(gl.ARRAY_BUFFER, sphere.iVertexBuffer);
+    gl.vertexAttribPointer(shProgram.iAttribVertex, 3, gl.FLOAT, false, 0, 0);
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, sphere.iIndexBuffer);
+    sphere.Draw();
+
+
     // The SECOND PASS (for the right eye)
 
     gl.clear(gl.DEPTH_BUFFER_BIT);
@@ -95,7 +133,6 @@ function draw() {
     let rightCam = stereoCam.ApplyRightFrustum();
     gl.uniformMatrix4fv(shProgram.iProjectionMatrix, false, rightCam.projection);
 
-    matAccum0 = m4.multiply(rotateToPointZero, modelView);
     matAccum1 = m4.multiply(rightCam.modelView, matAccum0);
     matAccum2 = m4.multiply(translateToPointZero, matAccum1);
 
@@ -109,7 +146,6 @@ function draw() {
     shProgram.Use();
     gl.bindBuffer(gl.ARRAY_BUFFER, surface.iVertexBuffer);
     gl.vertexAttribPointer(shProgram.iAttribVertex, 3, gl.FLOAT, false, 0, 0);
-    gl.enableVertexAttribArray(shProgram.iAttribVertex);
     gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, surface.iIndexBuffer);
 
     gl.uniform4fv(shProgram.iColor, [1, 1, 1, 1]);
@@ -121,14 +157,21 @@ function draw() {
     surface.DrawWireframe();
     gl.disable(gl.POLYGON_OFFSET_FILL);
 
+    let matSphereR1 = m4.multiply(matAccum0, matSphereTranslation);
+    let matSphereR2 = m4.multiply(rightCam.modelView, matSphereR1);
+    let matSphereR3 = m4.multiply(translateToPointZero, matSphereR2);
+    gl.uniformMatrix4fv(shProgram.iModelViewMatrix, false, matSphereR3);
+    gl.uniform4fv(shProgram.iColor, [1, 0, 0, 1]);
+    gl.bindBuffer(gl.ARRAY_BUFFER, sphere.iVertexBuffer);
+    gl.vertexAttribPointer(shProgram.iAttribVertex, 3, gl.FLOAT, false, 0, 0);
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, sphere.iIndexBuffer);
+    sphere.Draw();
+
     gl.colorMask(true, true, true, true);
 }
 
 
 function getActiveModelViewMatrix() {
-    if (sensorConnected && sensorHeadingValid) {
-        return m4.axisRotation([0, 1, 0], -sensorHeadingRad);
-    }
     return spaceball.getViewMatrix();
 }
 
@@ -244,6 +287,51 @@ function initControls() {
     }
 
     updateSensorUiStatus('Disconnected');
+    document.getElementById('playAudio').addEventListener('click', function () {
+        const fileInput = document.getElementById('audioFile');
+        if (fileInput.files.length === 0) {
+            alert('Please select an mp3/ogg file first!');
+            return;
+        }
+        if (!audioCtx) setupAudioNodes();
+
+        const file = fileInput.files[0];
+
+        if (audioEl.dataset.filename !== file.name) {
+            const objectURL = URL.createObjectURL(file);
+            audioEl.src = objectURL;
+            audioEl.loop = true;
+            audioEl.dataset.filename = file.name;
+        }
+
+        audioCtx.resume().then(() => {
+            audioEl.play();
+            document.getElementById('playAudio').disabled = true;
+            document.getElementById('pauseAudio').disabled = false;
+            document.getElementById('audioStatus').textContent = 'Playing: ' + file.name;
+        });
+    });
+
+    document.getElementById('pauseAudio').addEventListener('click', function () {
+        if (audioEl && !audioEl.paused) {
+            audioEl.pause();
+            document.getElementById('playAudio').disabled = false;
+            document.getElementById('pauseAudio').disabled = true;
+            document.getElementById('audioStatus').textContent = 'Paused';
+        }
+    });
+
+    document.getElementById('highPassToggle').addEventListener('change', function (e) {
+        if (highPassFilter) {
+            highPassFilter.frequency.value = e.target.checked ? 1000 : 0;
+        }
+    });
+
+    document.getElementById('audioVolume').addEventListener('input', function (e) {
+        let vol = e.target.value;
+        document.getElementById('volumeValue').textContent = vol;
+        audioEl.volume = vol / 100.0;
+    });
 }
 
 function updateSensorUiStatus(statusText) {
@@ -275,6 +363,14 @@ function updateHeadingLabel() {
 
 function extractMagneticVector(payload) {
     if (!payload || typeof payload !== 'object') return null;
+
+    if (Array.isArray(payload.values) && payload.values.length >= 3) {
+        return {
+            x: payload.values[0],
+            y: payload.values[1],
+            z: payload.values[2]
+        };
+    }
 
     if (typeof payload.mx === 'number' && typeof payload.my === 'number' && typeof payload.mz === 'number') {
         return {x: payload.mx, y: payload.my, z: payload.mz};
@@ -395,6 +491,11 @@ function initGL() {
     surface = new Model('Surface');
     surface.BufferData(data.verticesF32, data.indicesU16);
 
+    let sphereData = {};
+    CreateSphereData(sphereData, 0.4, 20, 20);
+    sphere = new Model('Sphere');
+    sphere.BufferData(sphereData.verticesF32, sphereData.indicesU16);
+
     stereoCam = new StereoCamera(
         .7,     // decimeters
         14.0,   // decimeters
@@ -470,4 +571,50 @@ function init() {
     spaceball = new TrackballRotator(canvas, draw, 0);
 
     draw();
+}
+
+function CreateSphereData(data, radius, latBands, longBands) {
+    let vertexPositionData = [];
+    let indexData = [];
+    for (let latNumber = 0; latNumber <= latBands; latNumber++) {
+        let theta = latNumber * Math.PI / latBands;
+        let sinTheta = Math.sin(theta);
+        let cosTheta = Math.cos(theta);
+        for (let longNumber = 0; longNumber <= longBands; longNumber++) {
+            let phi = longNumber * 2 * Math.PI / longBands;
+            let sinPhi = Math.sin(phi);
+            let cosPhi = Math.cos(phi);
+            vertexPositionData.push(radius * cosPhi * sinTheta, radius * cosTheta, radius * sinPhi * sinTheta);
+        }
+    }
+    for (let latNumber = 0; latNumber < latBands; latNumber++) {
+        for (let longNumber = 0; longNumber < longBands; longNumber++) {
+            let first = (latNumber * (longBands + 1)) + longNumber;
+            let second = first + longBands + 1;
+            indexData.push(first, second, first + 1);
+            indexData.push(second, second + 1, first + 1);
+        }
+    }
+    data.verticesF32 = new Float32Array(vertexPositionData);
+    data.indicesU16 = new Uint16Array(indexData);
+}
+
+function setupAudioNodes() {
+    const AudioContext = window.AudioContext || window.webkitAudioContext;
+    audioCtx = new AudioContext();
+    track = audioCtx.createMediaElementSource(audioEl);
+
+    panner = audioCtx.createPanner();
+    panner.panningModel = 'HRTF';
+    panner.distanceModel = 'inverse';
+    panner.refDistance = 1;
+    panner.maxDistance = 10000;
+
+    highPassFilter = audioCtx.createBiquadFilter();
+    highPassFilter.type = 'highpass';
+    highPassFilter.frequency.value = 0;
+
+    track.connect(highPassFilter);
+    highPassFilter.connect(panner);
+    panner.connect(audioCtx.destination);
 }
