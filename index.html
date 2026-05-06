@@ -3,21 +3,20 @@
 <head>
     <meta charset="utf-8">
     <title>Control Task: AR.js</title>
-    <!-- Підключаємо A-Frame та AR.js -->
     <script src="https://aframe.io/releases/1.3.0/aframe.min.js"></script>
     <script src="https://raw.githack.com/AR-js-org/AR.js/master/aframe/build/aframe-ar.js"></script>
 
     <script>
-        // РЕЄСТРУЄМО ТВОЮ УНІКАЛЬНУ ФІГУРУ З PA#1
         AFRAME.registerComponent('pa1-surface', {
             init: function () {
                 const geometry = new THREE.BufferGeometry();
                 const vertices = [];
                 const indices = [];
 
-                function deg2rad(angle) { return angle * Math.PI / 180; }
+                function deg2rad(angle) {
+                    return angle * Math.PI / 180;
+                }
 
-                // Твоя математика точнісінько як у твоєму CreateSurfaceData
                 let points = [];
                 for (let i = 0, ang = 0; i < 72; i++, ang += 5) {
                     points.push([Math.sin(deg2rad(ang)), 0, Math.cos(deg2rad(ang))]);
@@ -46,8 +45,7 @@
                 geometry.setIndex(indices);
                 geometry.computeVertexNormals();
 
-                // Матеріал - додаємо сітку (wireframe), щоб виглядало як у твоїй лабі
-                const material = new THREE.MeshNormalMaterial({ wireframe: true });
+                const material = new THREE.MeshNormalMaterial({wireframe: true});
                 const mesh = new THREE.Mesh(geometry, material);
 
                 this.el.setObject3D('mesh', mesh);
@@ -57,10 +55,9 @@
 </head>
 
 <body style="margin: 0; overflow: hidden;">
-<!-- Сцена AR -->
+
 <a-scene embedded arjs="sourceType: webcam; debugUIEnabled: false;">
 
-    <!-- СЮДИ ПІДКЛЮЧАЄТЬСЯ ТВІЙ МАРКЕР З ГЕРБОМ -->
     <a-marker type="pattern" url="pattern-marker.patt">
 
         <a-entity pa1-surface position="0 0 0" scale="1.5 1.5 1.5"></a-entity>
