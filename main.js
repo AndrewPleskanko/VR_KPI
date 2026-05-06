@@ -430,8 +430,16 @@ function connectSensor() {
         const mag = extractMagneticVector(payload);
         if (!mag) return;
 
+        if (typeof window.smoothX === 'undefined') {
+            window.smoothX = mag.x;
+            window.smoothY = mag.y;
+        }
+
+        window.smoothX = window.smoothX * 0.90 + mag.x * 0.10;
+        window.smoothY = window.smoothY * 0.90 + mag.y * 0.10;
+
         // Variant 8: single-vector compass-like heading (yaw only).
-        sensorHeadingRad = Math.atan2(mag.x, mag.y);
+        sensorHeadingRad = Math.atan2(window.smoothX, window.smoothY);
         sensorHeadingValid = Number.isFinite(sensorHeadingRad);
 
         updateHeadingLabel();

@@ -1,125 +1,73 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+    <meta charset="utf-8">
+    <title>Control Task: AR.js</title>
+    <!-- Підключаємо A-Frame та AR.js -->
+    <script src="https://aframe.io/releases/1.3.0/aframe.min.js"></script>
+    <script src="https://raw.githack.com/AR-js-org/AR.js/master/aframe/build/aframe-ar.js"></script>
 
+    <script>
+        // РЕЄСТРУЄМО ТВОЮ УНІКАЛЬНУ ФІГУРУ З PA#1
+        AFRAME.registerComponent('pa1-surface', {
+            init: function () {
+                const geometry = new THREE.BufferGeometry();
+                const vertices = [];
+                const indices = [];
 
-    <title>PA#2</title>
-    <style>
-        body {
-            background-color: #EEEEEE;
-        }
+                function deg2rad(angle) { return angle * Math.PI / 180; }
 
-        .container {
-            display: flex;
-            gap: 20px;
-            padding: 20px;
-        }
+                // Твоя математика точнісінько як у твоєму CreateSurfaceData
+                let points = [];
+                for (let i = 0, ang = 0; i < 72; i++, ang += 5) {
+                    points.push([Math.sin(deg2rad(ang)), 0, Math.cos(deg2rad(ang))]);
+                }
+                for (let i = 0, ang = 0; i < 72; i++, ang += 5) {
+                    points.push([Math.sin(deg2rad(ang)), 1, Math.cos(deg2rad(ang))]);
+                }
 
-        .controls {
-            background: #fff;
-            padding: 15px;
-            min-width: 250px;
-        }
+                for (let i = 0; i < points.length; i++) {
+                    vertices.push(points[i][0], points[i][1], points[i][2]);
+                }
 
-        .control-group {
-            margin-bottom: 10px;
-        }
+                for (let i = 0; i < 72; i++) {
+                    if (i > 0) {
+                        let v0 = i + 72;
+                        let v1 = v0 - 72 - 1;
+                        let v2 = v0 - 1;
+                        let v3 = v0 - 72;
 
-        .control-group input[type="range"] {
-            width: 100%;
-        }
+                        indices.push(v0, v1, v2);
+                        indices.push(v0, v3, v1);
+                    }
+                }
 
-        .control-group input[type="text"] {
-            width: 100%;
-            box-sizing: border-box;
-        }
+                geometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
+                geometry.setIndex(indices);
+                geometry.computeVertexNormals();
 
-    </style>
+                // Матеріал - додаємо сітку (wireframe), щоб виглядало як у твоїй лабі
+                const material = new THREE.MeshNormalMaterial({ wireframe: true });
+                const mesh = new THREE.Mesh(geometry, material);
 
-    <script src="./Utils/trackball-rotator.js"></script>
-    <script src="./Utils/m4.js"></script>
-    <script src="./shader.js"></script>
-    <script src="./Model.js"></script>
-    <script src="./StereoCamera.js"></script>
-    <script src="./main.js"></script>
-
+                this.el.setObject3D('mesh', mesh);
+            }
+        });
+    </script>
 </head>
-<body onload="init()">
 
-<h2>PA#3: Spatial Audio + Tangible Interface (Magnetometer, Variant 8, High-pass Filter)</h2>
+<body style="margin: 0; overflow: hidden;">
+<!-- Сцена AR -->
+<a-scene embedded arjs="sourceType: webcam; debugUIEnabled: false;">
 
-<p id="message">Surface stays fixed; phone magnetometer rotates a 3D sound source around the center.</p>
+    <!-- СЮДИ ПІДКЛЮЧАЄТЬСЯ ТВІЙ МАРКЕР З ГЕРБОМ -->
+    <a-marker type="pattern" url="pattern-marker.patt">
 
-<div class="container">
-    <div id="canvas-holder">
-        <canvas width="600" height="600" id="webglcanvas" style="background-color:black"></canvas>
-    </div>
+        <a-entity pa1-surface position="0 0 0" scale="1.5 1.5 1.5"></a-entity>
 
-    <div class="controls">
-        <h3>Stereo Parameters</h3>
+    </a-marker>
 
-        <div class="control-group">
-            <label>Eye Separation: <span id="eyeSeparationValue">0.7</span></label>
-            <input type="range" id="eyeSeparation" min="0.1" max="2.0" value="0.7" step="0.1">
-        </div>
-
-        <div class="control-group">
-            <label>FOV: <span id="fieldOfViewValue">23</span>°</label>
-            <input type="range" id="fieldOfView" min="5" max="90" value="23" step="1">
-        </div>
-
-        <div class="control-group">
-            <label>Near Clip: <span id="nearClippingValue">8</span></label>
-            <input type="range" id="nearClipping" min="1" max="15" value="8" step="0.5">
-        </div>
-
-        <div class="control-group">
-            <label>Convergence: <span id="convergenceValue">14</span></label>
-            <input type="range" id="convergence" min="1" max="30" value="14" step="0.5">
-        </div>
-
-        <h3>Phone Sensor (WebSocket)</h3>
-        <div class="control-group">
-            <label for="sensorWsUrl">WS URL</label>
-            <input type="text" id="sensorWsUrl" value="ws://192.168.0.100:8080" placeholder="ws://phone-or-bridge:port">
-        </div>
-        <div class="control-group">
-            <button id="connectSensor" onclick="connectSensor()">Connect</button>
-            <button id="disconnectSensor" onclick="disconnectSensor()" disabled>Disconnect</button>
-        </div>
-        <div class="control-group">
-            <div>Status: <span id="sensorStatus">Disconnected</span></div>
-            <div>Control mode: <span id="sourceControlMode">Manual (no sensor)</span></div>
-            <div>Heading: <span id="sensorHeading">-</span> deg</div>
-            <div>Source XYZ: <span id="sourcePosition">0.00, 0.50, 2.20</span></div>
-        </div>
-
-        <h3>Spatial Audio</h3>
-        <div class="control-group">
-            <label for="audioFile">Song (mp3/ogg)</label>
-            <input type="file" id="audioFile" accept=".mp3,.ogg,audio/*">
-        </div>
-        <div class="control-group">
-            <button id="playAudio">Play</button>
-            <button id="pauseAudio" disabled>Pause</button>
-        </div>
-        <div class="control-group">
-            <label>Volume: <span id="volumeValue">30</span>%</label>
-            <input type="range" id="audioVolume" min="0" max="100" value="30" step="1">
-        </div>
-        <div class="control-group">
-            <label>
-                <input type="checkbox" id="highPassToggle">
-                High-pass filter (variant 8)
-            </label>
-        </div>
-        <div class="control-group">
-            <div>Audio: <span id="audioStatus">Idle</span></div>
-        </div>
-    </div>
-</div>
-
-
+    <a-entity camera></a-entity>
+</a-scene>
 </body>
 </html>
